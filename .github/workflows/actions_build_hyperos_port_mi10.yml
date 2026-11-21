@@ -1,17 +1,17 @@
-name: actions_build_hyperos_port_mi10
+name: actions_build_hyperos_port_umi
 on:
   workflow_dispatch:
     inputs:
       STOCK_URL:
-        description: "待操作的底包/xiaomi.eu底包下载地址 | BASEROM DIRECT DOWNLOAD LINK(XIAOMI.EU or CN OFFICIAL ROM)"
+        description: "底包(umī MIUI14 官方整包, payload.bin) | BASEROM DIRECT LINK"
         required: true
-        default: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.5.0.TJBCNXM/miui_UMI_OS1.0.5.0.TJBCNXM_d01651ed86_13.0.zip
+        default: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/V14.0.4.0.TJBCNXM/miui_UMI_V14.0.4.0.TJBCNXM_23fc5ef4ee_13.0.zip
       PORT_URL:
-        description: "待操作的移植包下载地址 | PORTROM DIRECT DOWNLOAD LINK(XIAOMI.EU OR CN OFFICIAL ROM)"
+        description: "移植包(别机型 OS3/A16 官方或 eu 整包, payload.bin) | PORTROM DIRECT LINK"
         required: true
-        default: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.24.7.1.DEV/miui_THOR_OS1.0.24.7.1.DEV_57e3d0dd69_14.0.zip
+        default: https://sourceforge.net/projects/xiaomi-eu-multilang-miui-roms/files/xiaomi.eu/HyperOS-STABLE-RELEASES/HyperOS3.0/xiaomi.eu_FUXI_OS3.0.310.0.WMCCNXM_16_a668455fe6.zip/download
       PACK_TYPE:
-        description: "打包类型（EXT/EROFS) | PACKING TYPE(EXT/EROFS), EROFS BY DEFAULT"
+        description: "打包类型 EXT/EROFS | EXT 可解锁 system 读写"
         default: EXT
         type: choice
         options:
@@ -19,23 +19,19 @@ on:
         - EXT
         required: true
       ENCRYPTION:
-        description: "是否解密data分区(TRUE/FALSE)，默认加密 | FBE DECRYPTION OR NOT, FBE ENABLED BY DEFAULT"
-        default: FALSE
-        required: false
-      ONEDRIVE:
-        description: "是否上传到OneDrive| PUSH ROM TO ONEDRIVE"
+        description: "是否解密 data(TRUE/FALSE)"
         default: FALSE
         required: false
       GITHUBRELEASE:
-        description: "是否上传到Github Release | UPLOAD ROM TO GITHUB RELEASE"
-        default: FALSE
+        description: "产物上传到本仓库 GitHub Release"
+        default: TRUE
         required: false
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. 最大化并挂载构建空间 | MAXIMIZE BUILD SPACE
+      - name: 1. 最大化构建空间 | MAXIMIZE BUILD SPACE
         uses: easimon/maximize-build-space@master
         with:
           swap-size-mb: 8192
@@ -44,86 +40,49 @@ jobs:
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
-      - name: 2. 检出仓库文件 | CHECKOUT REPOSITORY
+      - name: 2. 检出仓库 | CHECKOUT
         uses: actions/checkout@main
         with:
           ref: main
           fetch-depth: 1
-      - name: 3. 准备环境 | PREPARE ENVIRONMENT
+      - name: 3. 准备依赖 | PREPARE ENVIRONMENT
         run: |
-          sudo apt install python3 aria2 zip p7zip-full zipalign android-sdk-libsparse-utils xmlstarlet
-          sudo apt-get remove -y firefox zstd
-          curl https://rclone.org/install.sh | sudo bash
-          mkdir -p ~/.config/rclone/
-          echo "${{ secrets.RCLONE_TOKEN }}" > token.txt
-          base64 -d token.txt > ~/.config/rclone/rclone.conf
+          sudo apt update
+          sudo apt install -y python3 aria2 zip p7zip-full zipalign android-sdk-libsparse-utils xmlstarlet bc openjdk-17-jre
+          java -version
+          python3 --version
       - name: 4. 开始移植 | START PORTING
         run: |
           git clone https://github.com/toraidl/hyperos_port.git -b ext
           cd hyperos_port
-          mkdir tmp
-          mkdir -p devices/umi devices/cmi
-          cp -rfv tmp/BT*.zip devices/umi
-          cp -rfv tmp/BT*.zip devices/cmi
-          if [[ ${{ github.event.inputs.PACK_TYPE }} == "EROFS" ]]; then
+          mkdir -p tmp devices/umi devices/cmi
+          cp -rfv tmp/BT*.zip devices/umi || true
+          cp -rfv tmp/BT*.zip devices/cmi || true
+          if [[ "${{ github.event.inputs.PACK_TYPE }}" == "EROFS" ]]; then
               sed -i "s/repack_with_ext4=true/repack_with_ext4=false/" bin/port_config
           fi
-
-          if [[ ${{ github.event.inputs.ENCRYPTION }} == "TRUE" ]]; then
+          if [[ "${{ github.event.inputs.ENCRYPTION }}" == "TRUE" ]]; then
               sed -i "s/remove_data_encryption=false/remove_data_encryption=true/" bin/port_config
           fi
           sudo timedatectl set-timezone Asia/Shanghai
-          java -version
-          python3 --version
-          ls -alR "$GITHUB_WORKSPACE"
-          sudo bash port.sh ${{ github.event.inputs.STOCK_URL }} ${{ github.event.inputs.PORT_URL }} 
-      - name: 5. 准备上传 | PREPARE UPLOADING
+          sudo bash port.sh "${{ github.event.inputs.STOCK_URL }}" "${{ github.event.inputs.PORT_URL }}"
+      - name: 5. 准备产物分片 | PREPARE RELEASE ARTIFACTS
         run: |
-          ROM_FILE=$(basename $(find "$GITHUB_WORKSPACE"/hyperos_port/out -name "*.zip"))
+          ROM_FILE=$(basename $(find "$GITHUB_WORKSPACE"/hyperos_port/out -name "*.zip" | head -n1))
           echo "ROM_FILE=$ROM_FILE" >>$GITHUB_ENV
-          OS_VERSION=$(echo $ROM_FILE | cut -d "_" -f3)
+          OS_VERSION=$(echo "$ROM_FILE" | cut -d "_" -f3)
           echo "OS_VERSION=$OS_VERSION" >>$GITHUB_ENV
           mkdir -p "$GITHUB_WORKSPACE"/hyperos_port/GithubRelease
           cd "$GITHUB_WORKSPACE"/hyperos_port/GithubRelease
-          sudo split -b 1536M -d "$GITHUB_WORKSPACE"/hyperos_port/out/$ROM_FILE $ROM_FILE
-          ls -al "$GITHUB_WORKSPACE"/hyperos_port/GithubRelease/
-      - name: 6. 安装ZeroTier |  INTALLING ZEROTIER
-        uses: zerotier/github-action@v1.0.1
-        with:
-            network_id: ${{ secrets.NETWORK_ID }}
-      - name: 7. 测试ping | PING TEST
-        shell: bash
-        run: |
-          count=5
-          while ! ping -c 1 ${{ secrets.SMB_IP }} ; do
-          echo "waiting..." ;
-          sleep 1 ;
-          let count=count-1
-          done
-          echo "ping success"
-      - name: 8. Mount SMB Share
-        run: |
-          sudo apt update
-          sudo apt-get install gcp -y
-          sudo mkdir ~/smb_share
-          sudo mount -t cifs //${{ secrets.SMB_IP }}/backup ~/smb_share -o username=${{ secrets.SMB_USERNAME }},password=${{ secrets.SMB_PASSWORD }}
-          sudo gcp -v "$GITHUB_WORKSPACE"/hyperos_port/out/${{ env.ROM_FILE }}  ~/smb_share/ROM/
-         
-      - name: 9. 上传到OneDrive | PUSH ROM TO ONEDRIVE
-        if:  ${{  github.event.inputs.ONEDRIVE == 'TRUE' }}
-        run: |
-            rclone sync -P "$GITHUB_WORKSPACE"/hyperos_port/out/${{ env.ROM_FILE }} onedrive:/ROM/github-actions/$OS_VERSION
-            SHARE_LINK=$(rclone link onedrive:/ROM/github-actions/ --onedrive-link-scope anonymous)
-            touch file.log
-            echo -e "Onedrive下载链接 | Onedrive alternate download link: \n $SHARE_LINK" > file.log
-     
-      - name: 10. 上传到Github Release| UPLOAD ROM TO GITHUB RELEASAE
-        if: ${{  github.event.inputs.GITHUBRELEASE == 'TRUE' }}
+          sudo split -b 1536M -d "$GITHUB_WORKSPACE"/hyperos_port/out/"$ROM_FILE" "$ROM_FILE"
+          ls -al
+      - name: 6. 上传 GitHub Release | UPLOAD RELEASE
+        if: ${{ github.event.inputs.GITHUBRELEASE == 'TRUE' }}
         uses: ncipollo/release-action@main
         with:
           artifacts: ${{ github.workspace }}/hyperos_port/GithubRelease/*
           name: ${{ env.OS_VERSION }}
-          tag: ${{ env.OS_VERSION }}
-          bodyFile: "${{ github.workspace }}/file.log"
+          tag: port-${{ github.run_number }}
+          body: "umī HyperOS port build ${{ github.run_number }}. 分片需按后缀顺序 cat 合并为完整 zip 后校验 MD5 再刷入。"
           allowUpdates: true
           artifactErrorsFailBuild: true
