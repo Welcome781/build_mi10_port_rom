@@ -31,27 +31,18 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. 最大化构建空间 | MAXIMIZE BUILD SPACE
-        uses: easimon/maximize-build-space@master
-        with:
-          swap-size-mb: 8192
-          root-reserve-mb: 4096
-          temp-reserve-mb: 4096
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-      - name: 2. 检出仓库 | CHECKOUT
+      - name: 1. 检出仓库 | CHECKOUT
         uses: actions/checkout@main
         with:
           ref: main
           fetch-depth: 1
-      - name: 3. 准备依赖 | PREPARE ENVIRONMENT
+      - name: 2. 准备依赖 | PREPARE ENVIRONMENT
         run: |
           sudo apt update
           sudo apt install -y python3 aria2 zip p7zip-full zipalign android-sdk-libsparse-utils xmlstarlet bc openjdk-17-jre
           java -version
           python3 --version
-      - name: 4. 开始移植 | START PORTING
+      - name: 3. 开始移植 | START PORTING
         run: |
           git clone https://github.com/toraidl/hyperos_port.git -b ext
           cd hyperos_port
@@ -66,7 +57,7 @@ jobs:
           fi
           sudo timedatectl set-timezone Asia/Shanghai
           sudo bash port.sh "${{ github.event.inputs.STOCK_URL }}" "${{ github.event.inputs.PORT_URL }}"
-      - name: 5. 准备产物分片 | PREPARE RELEASE ARTIFACTS
+      - name: 4. 准备产物分片 | PREPARE RELEASE ARTIFACTS
         run: |
           ROM_FILE=$(basename $(find "$GITHUB_WORKSPACE"/hyperos_port/out -name "*.zip" | head -n1))
           echo "ROM_FILE=$ROM_FILE" >>$GITHUB_ENV
@@ -76,7 +67,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"/hyperos_port/GithubRelease
           sudo split -b 1536M -d "$GITHUB_WORKSPACE"/hyperos_port/out/"$ROM_FILE" "$ROM_FILE"
           ls -al
-      - name: 6. 上传 GitHub Release | UPLOAD RELEASE
+      - name: 5. 上传 GitHub Release | UPLOAD RELEASE
         if: ${{ github.event.inputs.GITHUBRELEASE == 'TRUE' }}
         uses: ncipollo/release-action@main
         with:
