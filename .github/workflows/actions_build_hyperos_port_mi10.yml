@@ -27,6 +27,9 @@ on:
         default: TRUE
         required: false
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -69,7 +72,7 @@ jobs:
           ls -al
       - name: 5. 上传 GitHub Release | UPLOAD RELEASE
         if: ${{ github.event.inputs.GITHUBRELEASE == 'TRUE' }}
-        uses: ncipollo/release-action@main
+        uses: ncipollo/release-action@v1
         with:
           artifacts: ${{ github.workspace }}/hyperos_port/GithubRelease/*
           name: ${{ env.OS_VERSION }}
