@@ -9,10 +9,10 @@ on:
       PORT_URL:
         description: "移植包(别机型 OS3/A16 官方或 eu 整包, payload.bin) | PORTROM DIRECT LINK"
         required: true
-        default: https://sourceforge.net/projects/xiaomi-eu-multilang-miui-roms/files/xiaomi.eu/HyperOS-STABLE-RELEASES/HyperOS3.0/xiaomi.eu_FUXI_OS3.0.310.0.WMCCNXM_16_a668455fe6.zip/download
+        default: https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS3.0.302.0.WMBEUXM/nuwa_eea_global-ota_full-OS3.0.302.0.WMBEUXM-user-16.0-0ff7a00dce.zip
       PACK_TYPE:
         description: "打包类型 EXT/EROFS | EXT 可解锁 system 读写"
-        default: EXT
+        default: EROFS
         type: choice
         options:
         - EROFS
